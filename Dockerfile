@@ -16,6 +16,7 @@ RUN pip install -r requirements.txt
 ENV DASHBOARD_URL "https://darksky.net"
 ENV DISPLAY_NAME ""
 ENV IGNORE_CEC "True"
+ENV FORCE "False"
 
 # Run app.sh when the container launches
 CMD ["./app.sh"]
