@@ -18,6 +18,7 @@ print('Searching for Chromecasts...')
 DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'https://home-assistant.io')
 DISPLAY_NAME = os.getenv('DISPLAY_NAME')
 IGNORE_CEC = os.getenv('IGNORE_CEC') == 'True'
+FORCE = os.getenv('FORCE') == 'False'
 
 if IGNORE_CEC:
     print('Ignoring CEC for Chromecast', DISPLAY_NAME)
@@ -30,7 +31,7 @@ if '--show-debug' in sys.argv:
 
 class DashboardLauncher():
 
-    def __init__(self, device, dashboard_url='https://home-assistant.io', dashboard_app_name='DashCast'):
+    def __init__(self, device, dashboard_url='https://home-assistant.io', force, dashboard_app_name='DashCast'):
         self.device = device
         print('DashboardLauncher', self.device.name)
 
@@ -42,6 +43,7 @@ class DashboardLauncher():
 
         self.dashboard_url = dashboard_url
         self.dashboard_app_name = dashboard_app_name
+        self.force = force
 
         # Check status on init.
         self.new_cast_status(self.device.status)
@@ -91,7 +93,7 @@ class DashboardLauncher():
             print('callback called', response)
 
         try:
-            self.controller.load_url(self.dashboard_url, callback_function=callback)
+            self.controller.load_url(self.dashboard_url, force=force, callback_function=callback)
         except Exception as e:
             print(e)
             pass
@@ -126,7 +128,7 @@ if not cast:
     print('Chromecast with name', DISPLAY_NAME, 'not found')
     exit()
 
-DashboardLauncher(cast, dashboard_url=DASHBOARD_URL)
+DashboardLauncher(cast, dashboard_url=DASHBOARD_URL, force=FORCE)
 
 # Keep running
 while True:
