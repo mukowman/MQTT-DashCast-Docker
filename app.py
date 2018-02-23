@@ -31,7 +31,7 @@ if '--show-debug' in sys.argv:
 
 class DashboardLauncher():
 
-    def __init__(self, device, dashboard_url='https://home-assistant.io', force, dashboard_app_name='DashCast'):
+    def __init__(self, device, dashboard_url='https://home-assistant.io', force=False, dashboard_app_name='DashCast'):
         self.device = device
         print('DashboardLauncher', self.device.name)
 
