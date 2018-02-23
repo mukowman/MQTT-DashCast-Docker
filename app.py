@@ -93,7 +93,7 @@ class DashboardLauncher():
             print('callback called', response)
 
         try:
-            self.controller.load_url(self.dashboard_url, force=force, callback_function=callback)
+            self.controller.load_url(self.dashboard_url, force=True, callback_function=callback)
         except Exception as e:
             print(e)
             pass
