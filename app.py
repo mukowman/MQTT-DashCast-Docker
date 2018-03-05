@@ -10,10 +10,11 @@ import json
 import pychromecast
 import pychromecast.controllers.dashcast as dashcast
 
-DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'https://darksky.net/forecast/-33.766,150.945/ca12/en')
 IGNORE_CEC = os.getenv('IGNORE_CEC') == 'True'
 SUBSCRIBE = 'chromecast/+/command/dashcast'
-broker_address="iot.eclipse.org"
+MQTT_SERVER = os.getenv('MQTT_SERVER', 'iot.eclipse.org')
+MQTT_USERNAME = os.getenv('MQTT_USERNAME')
+MQTT_PASSWORD = os.getenv('MQTT_PASSWORD')
 
 ############
 def on_connect(client, userdata,flags, rc):
@@ -91,8 +92,9 @@ print("Starting MQTT")
 client = mqtt.Client("P1") #create new instance
 client.on_message=on_message #attach function to callback
 client.on_connect=on_connect
-print("Connecting to Broker: "+broker_address)
-client.connect(broker_address) #connect to broker
+print("Connecting to Broker: "+MQTT_SERVER)
+client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+client.connect(MQTT_SERVER) #connect to broker
 #client.loop_start() #start the loop
 client.loop_forever()
 
