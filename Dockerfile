@@ -13,10 +13,10 @@ ADD . /app
 RUN pip install -r requirements.txt
 
 # Define environment variables
-ENV DASHBOARD_URL "https://darksky.net"
-ENV DISPLAY_NAME ""
+ENV MQTT_SERVER "iot.eclipse.org"
+ENV MQTT_USERNAME ""
+ENV MQTT_PASSWORD ""
 ENV IGNORE_CEC "True"
-ENV FORCE "False"
 
 # Run app.sh when the container launches
 CMD ["./app.sh"]
