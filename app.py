@@ -1,136 +1,102 @@
-"""
-Run DashCast semi-persistently on a Chromecast while allowing other
-Chromecast apps to work also by only launching when idle.
-"""
-
-from __future__ import print_function
+import paho.mqtt.client as mqtt #import the client1
 import time
+
+#import time
 import os
 import sys
 import logging
+import json
 
 import pychromecast
 import pychromecast.controllers.dashcast as dashcast
 
-print('DashCast')
-print('Searching for Chromecasts...')
-
-DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'https://home-assistant.io')
-DISPLAY_NAME = os.getenv('DISPLAY_NAME')
+DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'https://darksky.net/forecast/-33.766,150.945/ca12/en')
 IGNORE_CEC = os.getenv('IGNORE_CEC') == 'True'
-FORCE = os.getenv('FORCE') == 'False'
+SUBSCRIBE = 'chromecast/+/command/dashcast'
+broker_address="iot.eclipse.org"
 
-if IGNORE_CEC:
-    print('Ignoring CEC for Chromecast', DISPLAY_NAME)
-    pychromecast.IGNORE_CEC.append(DISPLAY_NAME)
+############
+def on_connect(client, userdata,flags, rc):
+	print("Connected with result code "+str(rc))
+	# Subscribing in on_connect() means that if we lose the connection and
+	# reconnect then subscriptions will be renewed.
+	print("Subscribing to topic ",SUBSCRIBE)
+	client.subscribe(SUBSCRIBE)
 
+def on_message(client, userdata, message):
+ print("Message received: " ,str(message.payload.decode("utf-8")))
+ print("-Topic: ",message.topic)
+ print("-QOS: ",message.qos)
+ print("-Retain: ",message.retain)
+ #print(message.topic.split('/'))
+ 	
+ try:
+	#print(message.payload.json())
+ 	json_decode=str(message.payload.decode("utf-8","ignore"))
+ 	print("Decoding Json")
+ 	parsed_json=json.loads(json_decode)
+ except json.decoder.JSONDecodeError:
+    print("Error passing JSON")
+    return
+	
+ DISPLAY_NAME = str(message.topic.split('/')[1])
+ print("Chromecast: "+DISPLAY_NAME)
+ print("Url: "+parsed_json["url"])
+ print("Force: "+str(parsed_json["force"]))
+ cast_url(DISPLAY_NAME, parsed_json["url"],parsed_json["force"])
+ 
+def cast_url(display, url, force):
+	print("Searching for Chromecasts")
+	casts = pychromecast.get_chromecasts()
+	if len(casts) == 0:
+		print("No Devices Found")
+		return
 
-if '--show-debug' in sys.argv:
-    logging.basicConfig(level=logging.DEBUG)
+	cast = next(cc for cc in casts if display in (None, '') or cc.device.friendly_name == display)
 
+	if not cast:
+		print('Chromecast with name', display, 'not found')
+		return
 
-class DashboardLauncher():
+	d = dashcast.DashCastController()
+	cast.register_handler(d)
 
-    def __init__(self, device, dashboard_url='https://home-assistant.io', force=False, dashboard_app_name='DashCast'):
-        self.device = device
-        print('DashboardLauncher', self.device.name)
+	print()
+	print(cast.device)
+	time.sleep(1)
+	print()
+	print(cast.status)
+	print()
+	print(cast.media_controller.status)
+	print()
 
-        self.controller = dashcast.DashCastController()
-        self.device.register_handler(self.controller)
+	if not cast.is_idle:
+		print("Killing current running app")
+		cast.quit_app()
+		time.sleep(5)
 
-        receiver_controller = device.socket_client.receiver_controller
-        receiver_controller.register_status_listener(self)
+	time.sleep(1)
 
-        self.dashboard_url = dashboard_url
-        self.dashboard_app_name = dashboard_app_name
-        self.force = force
+	# Test that the callback chain works. This should send a message to
+	# load the first url, but immediately after send a message load the
+	# second url.
+	warning_message = 'If you see this on your TV then something is broken'
+	d.load_url(url, force,
+			   callback_function=lambda result:
+			   d.load_url(url,force))
+ 
+########################################
+#broker_address="192.168.1.184"
+print("Starting MQTT")
+client = mqtt.Client("P1") #create new instance
+client.on_message=on_message #attach function to callback
+client.on_connect=on_connect
+print("Connecting to Broker: "+broker_address)
+client.connect(broker_address) #connect to broker
+#client.loop_start() #start the loop
+client.loop_forever()
 
-        # Check status on init.
-        self.new_cast_status(self.device.status)
-        # Launch dashboard on init.
-        while True:
-            self.launch_dashboard()
-            time.sleep(60)
-
-    def new_cast_status(self, cast_status):
-        """ Called when a new cast status has been received. """
-        print('new_cast_status', self.device.name, cast_status)
-
-        def should_launch():
-            """ If the device is active, the dashboard is not already active, and no other app is active. """
-            print('should launch', self.is_device_active(), not self.is_dashboard_active(), not self.is_other_app_active())
-            return (self.is_device_active()
-                    and not self.is_dashboard_active()
-                    and not self.is_other_app_active())
-
-        if should_launch():
-            print('might launch dashboard in 10 seconds')
-            time.sleep(10)
-        if should_launch():
-            self.launch_dashboard()
-
-    def is_device_active(self):
-        """ Returns if there is currently an app running and (maybe) visible. """
-        return (self.device.status is not None
-                and self.device.app_id is not None
-                and (self.device.status.is_active_input or self.device.ignore_cec)
-                and (not self.device.status.is_stand_by and not self.device.ignore_cec))
-
-    def is_dashboard_active(self):
-        """ Returns if the dashboard is (probably) visible. """
-        return (self.is_device_active()
-                and self.device.app_display_name == self.dashboard_app_name)
-
-    def is_other_app_active(self):
-        """ Returns if an app other than the dashboard or the Backdrop is (probably) visible. """
-        return (self.is_device_active()
-                and self.device.app_display_name not in ('Backdrop', self.dashboard_app_name))
-
-    def launch_dashboard(self):
-        print('Launching dashboard on Chromecast', self.device.name)
-
-        def callback(response):
-            print('callback called', response)
-
-        try:
-            self.controller.load_url(self.dashboard_url, force=True, callback_function=callback)
-        except Exception as e:
-            print(e)
-            pass
-
-
-"""
-Check for cast.socket_client.get_socket() and
-handle it with cast.socket_client.run_once()
-"""
-"""
-def main_loop():
-    def callback(chromecast):
-        print('found', chromecast)
-        DashboardLauncher(chromecast, dashboard_url='http://192.168.1.132:8080')
-
-    pychromecast.get_chromecasts(blocking=False, callback=callback)
-
-    while True:
-        time.sleep(1)
-
-main_loop()
-"""
-
-casts = pychromecast.get_chromecasts()
-if len(casts) == 0:
-    print('No Devices Found')
-    exit()
-
-cast = next(cc for cc in casts if DISPLAY_NAME in (None, '') or cc.device.friendly_name == DISPLAY_NAME)
-
-if not cast:
-    print('Chromecast with name', DISPLAY_NAME, 'not found')
-    exit()
-
-DashboardLauncher(cast, dashboard_url=DASHBOARD_URL, force=FORCE)
-
-# Keep running
-while True:
-    time.sleep(1)
-
+#print("Publishing message to topic","chromecast/TV/command/dashcast")
+#client.publish("chromecast/TV/command/dashcast","{'"+DASHBOARD_URL+"', 'true'}")
+#time.sleep(4) # wait
+#client.loop_stop() #stop the loop
