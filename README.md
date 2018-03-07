@@ -1,6 +1,7 @@
 # MQTT-DashCast-Docker
-A Dashcast docker controller using MQTT
-Credit to madmod/dashcast-docker, used as a base for this docker.
+A Dashcast docker controlled using MQTT
+
+Credit to [madmod/dashcast-docker](https://github.com/madmod/dashcast-docker), used as a base for this docker.
 
 This docker will subscribe to an MQTT topic and launch DashCast on the specified ChromeCast
 
